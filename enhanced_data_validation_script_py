@@ -83,7 +83,7 @@ class EnhancedDataValidationProcessor:
             self.logger.info(f"Columns found: {list(df.columns)}")
             
             # Validate required columns for enhanced validation
-            required_columns = ['Source_Table', 'Target_Table', 'Join_Key', 'Source_Column', 
+            required_columns = ['Source_Table', 'Target_Table', 'Join_Key', 
                               'Target_Column', 'Derivation_Logic']
             
             missing_columns = [col for col in required_columns if col not in df.columns]
