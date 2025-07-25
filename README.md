@@ -118,18 +118,24 @@ Your Excel file should contain the following columns:
 
 ## Enhanced Excel Structure (Join-Based Validation)
 
-For the enhanced validation script, use this structure which supports proper table relationships:
+For the enhanced validation script, use this streamlined structure which supports proper table relationships:
 
 | Column Name | Description | Required | Example |
 |-------------|-------------|----------|---------|
 | Source_Table | Source table name | Yes | `customer_source` |
 | Target_Table | Target table name | Yes | `customer_target` |
 | Join_Key | Primary/Foreign key for joining | Yes | `customer_id` |
-| Source_Column | Source column name(s) | Yes | `first_name` or `amount, fee_rate` |
 | Target_Column | Target column name | Yes | `customer_first_name` |
-| Derivation_Logic | SQL-like transformation | Yes | `UPPER(source.first_name)` |
+| Derivation_Logic | SQL-like transformation (source columns implicit) | Yes | `UPPER(source.first_name)` |
 | Validation_Type | Type of validation | Yes | `Transformation` |
 | Business_Rule | Business context | No | `Name standardization` |
+
+**Key Improvement**: Removed redundant `Source_Column` field - the derivation logic already contains all source column information!
+
+**Multi-Column Examples:**
+- `source.balance_usd * source.exchange_rate` (uses balance_usd, exchange_rate)
+- `source.base_rate + source.margin` (uses base_rate, margin)
+- `CASE WHEN source.credit_score >= 750 THEN "LOW"...` (uses credit_score)
 
 **Generate Enhanced Structure:**
 ```bash
