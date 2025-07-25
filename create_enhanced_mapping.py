@@ -110,6 +110,43 @@ def create_enhanced_validation_mapping():
             'Expected_Result': 'Customer age in years',
             'Validation_Type': 'Calculation',
             'Business_Rule': 'Age = current year - birth year'
+        },
+        # Same-table validation examples (no join required)
+        {
+            'Version': '1.0',
+            'Function': 'Data Quality Check',
+            'Source_Table': 'customer_data',
+            'Target_Table': 'customer_data',
+            'Join_Key': 'N/A',
+            'Target_Column': 'email_valid',
+            'Derivation_Logic': 'CASE WHEN source.email LIKE "%@%.%" THEN "VALID" ELSE "INVALID" END',
+            'Expected_Result': 'Email validation flag',
+            'Validation_Type': 'Data_Quality',
+            'Business_Rule': 'Email must contain @ and . characters'
+        },
+        {
+            'Version': '1.0',
+            'Function': 'Derived Field Validation',
+            'Source_Table': 'account_summary',
+            'Target_Table': 'account_summary',
+            'Join_Key': 'N/A',
+            'Target_Column': 'total_balance',
+            'Derivation_Logic': 'source.checking_balance + source.savings_balance + source.investment_balance',
+            'Expected_Result': 'Sum of all account balances',
+            'Validation_Type': 'Calculation',
+            'Business_Rule': 'Total balance = sum of all individual balances'
+        },
+        {
+            'Version': '1.0',
+            'Function': 'Business Rule Validation',
+            'Source_Table': 'loan_applications',
+            'Target_Table': 'loan_applications',
+            'Join_Key': 'N/A',
+            'Target_Column': 'approval_status',
+            'Derivation_Logic': 'CASE WHEN source.credit_score >= 700 AND source.income >= 50000 THEN "APPROVED" ELSE "REJECTED" END',
+            'Expected_Result': 'Loan approval decision',
+            'Validation_Type': 'Business_Logic',
+            'Business_Rule': 'Approve loans only for credit score >= 700 and income >= 50K'
         }
     ]
     
@@ -119,8 +156,8 @@ def create_enhanced_validation_mapping():
     # Add metadata columns
     df['Created_Date'] = datetime.now().strftime('%Y-%m-%d')
     df['Created_By'] = 'Data Validation Framework'
-    df['Priority'] = ['High', 'High', 'Critical', 'Critical', 'Medium', 'Medium', 'High', 'Low']
-    df['Test_Data_Size'] = [1000, 1000, 5000, 2000, 10000, 3000, 5000, 1000]
+    df['Priority'] = ['High', 'High', 'Critical', 'Critical', 'Medium', 'Medium', 'High', 'Low', 'Medium', 'High', 'Critical']
+    df['Test_Data_Size'] = [1000, 1000, 5000, 2000, 10000, 3000, 5000, 1000, 2000, 3000, 1500]
     
     return df
 
@@ -178,11 +215,41 @@ def create_sample_test_data():
         'margin': np.random.uniform(0.5, 3.0, n_loans)
     })
     
+    # Sample same-table validation data
+    n_same_table = 500
+    
+    # Customer data for same-table validation
+    customer_data = pd.DataFrame({
+        'customer_id': range(1, n_same_table + 1),
+        'email': [f'user{i}@{"example.com" if i % 4 != 0 else "invalid"}' for i in range(n_same_table)],
+        'email_valid': np.random.choice(['VALID', 'INVALID'], n_same_table, p=[0.8, 0.2])
+    })
+    
+    # Account summary for same-table validation
+    account_summary = pd.DataFrame({
+        'account_id': range(1, n_same_table + 1),
+        'checking_balance': np.random.uniform(100, 5000, n_same_table),
+        'savings_balance': np.random.uniform(500, 15000, n_same_table),
+        'investment_balance': np.random.uniform(0, 25000, n_same_table),
+        'total_balance': np.random.uniform(1000, 40000, n_same_table)  # This should match sum of above
+    })
+    
+    # Loan applications for same-table validation
+    loan_applications = pd.DataFrame({
+        'application_id': range(1, n_same_table + 1),
+        'credit_score': np.random.randint(300, 850, n_same_table),
+        'income': np.random.uniform(30000, 150000, n_same_table),
+        'approval_status': np.random.choice(['APPROVED', 'REJECTED'], n_same_table, p=[0.6, 0.4])
+    })
+    
     return {
         'customer_source': customer_source,
         'account_source': account_source, 
         'transaction_source': transaction_source,
-        'loan_source': loan_source
+        'loan_source': loan_source,
+        'customer_data': customer_data,
+        'account_summary': account_summary,
+        'loan_applications': loan_applications
     }
 
 def main():
@@ -239,12 +306,17 @@ def main():
         doc_data.to_excel(writer, sheet_name='Documentation', index=False)
     
     print(f"✅ Enhanced validation mapping created: {filename}")
-    print("\n📋 New Excel Structure:")
-    print("- Validation_Mapping: Main mapping with join keys")
+    print("\n📋 Excel Structure:")
+    print("- Validation_Mapping: Main mapping with join keys (11 mappings)")
+    print("\n🔗 Cross-Table Validation Data:")
     print("- customer_source: Sample customer data")
     print("- account_source: Sample account data") 
     print("- transaction_source: Sample transaction data")
     print("- loan_source: Sample loan data")
+    print("\n🏠 Same-Table Validation Data:")
+    print("- customer_data: Customer self-validation")
+    print("- account_summary: Account balance validation")
+    print("- loan_applications: Loan approval validation")
     print("- Documentation: Column descriptions")
     
     print(f"\n🔑 Key Enhancements:")

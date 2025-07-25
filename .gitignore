@@ -131,6 +131,12 @@ Thumbs.db
 *.log
 logs/
 
+# Generated output files (timestamped)
+enhanced_validation_logs_*.log
+enhanced_validation_results_*.csv
+enhanced_validation_mapping_*.xlsx
+validation_logs_*.log
+
 # Custom configuration files
 config.ini
 settings.ini

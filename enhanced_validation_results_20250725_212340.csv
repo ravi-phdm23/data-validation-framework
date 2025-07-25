@@ -1,9 +1,0 @@
-Source_Table,Target_Table,Join_Key,Source_Column,Target_Column,Derivation_Logic,Validation_Type,Total_Count,Pass_Count,Fail_Count,Pass_Rate,Status
-customer_source,customer_target,customer_id,first_name,customer_first_name,UPPER(source.first_name),Transformation,1000,742,258,74.2,FAIL
-customer_source,customer_target,customer_id,last_name,customer_last_name,UPPER(source.last_name),Transformation,1000,742,258,74.2,FAIL
-account_source,account_target,account_id,"balance_usd, exchange_rate",balance_local_currency,source.balance_usd * source.exchange_rate,Calculation,1000,762,238,76.2,FAIL
-customer_source,risk_target,customer_id,credit_score,risk_category,"CASE WHEN source.credit_score >= 750 THEN ""LOW"" WHEN source.credit_score >= 650 THEN ""MEDIUM"" ELSE ""HIGH"" END",Business_Logic,1000,740,260,74.0,FAIL
-transaction_source,transaction_target,transaction_id,"amount, fee_rate",calculated_fee,source.amount * source.fee_rate / 100,Calculation,1000,762,238,76.2,FAIL
-loan_source,loan_target,loan_id,"principal, base_rate, margin",effective_rate,source.base_rate + source.margin,Calculation,1000,762,238,76.2,FAIL
-account_source,account_target,account_id,"balance, last_transaction_date",account_status,"CASE WHEN source.balance > 0 AND DATEDIFF(CURRENT_DATE, source.last_transaction_date) <= 90 THEN ""ACTIVE"" ELSE ""INACTIVE"" END",Business_Logic,1000,740,260,74.0,FAIL
-customer_source,customer_target,customer_id,date_of_birth,age,YEAR(CURRENT_DATE) - YEAR(source.date_of_birth),Calculation,1000,756,244,75.6,FAIL

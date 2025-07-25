@@ -137,11 +137,12 @@ class EnhancedDataValidationProcessor:
                                  record_count: int = 1000) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Create sample source and target data with proper join keys for testing.
+        Handles both cross-table joins and same-table validations.
         
         Args:
             source_table: Name of source table
             target_table: Name of target table  
-            join_key: Column name for joining tables
+            join_key: Column name for joining tables (ignored if same table)
             source_columns: List of source column names
             target_column: Target column name
             record_count: Number of records to generate
@@ -151,6 +152,83 @@ class EnhancedDataValidationProcessor:
         """
         np.random.seed(42)
         
+        # Check if source and target are the same table (self-validation scenario)
+        is_same_table = source_table.lower() == target_table.lower()
+        
+        if is_same_table:
+            self.logger.info(f"[INFO] SAME TABLE VALIDATION: {source_table} - No join required")
+            return self.create_same_table_validation_data(source_table, source_columns, target_column, record_count)
+        else:
+            self.logger.info(f"[INFO] CROSS TABLE VALIDATION: {source_table} -> {target_table} - Join required")
+            return self.create_cross_table_validation_data(source_table, target_table, join_key, source_columns, target_column, record_count)
+    
+    def create_same_table_validation_data(self, table_name: str, source_columns: List[str], 
+                                        target_column: str, record_count: int = 1000) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """
+        Create sample data for same-table validation scenarios.
+        
+        Args:
+            table_name: Table name for validation
+            source_columns: List of source column names
+            target_column: Target column name
+            record_count: Number of records to generate
+            
+        Returns:
+            Tuple of (source_df, target_df, joined_df) - all same dataframe for same table
+        """
+        # Generate primary key values
+        primary_key = 'id'  # Default primary key
+        key_values = range(1, record_count + 1)
+        
+        # Create comprehensive table data with both source and target columns
+        table_data = {primary_key: key_values}
+        
+        # Add source columns
+        for col in source_columns:
+            if 'name' in col.lower():
+                table_data[col] = [f'Name{i}' for i in key_values]
+            elif 'date' in col.lower():
+                table_data[col] = pd.date_range('2020-01-01', periods=record_count, freq='D')
+            elif 'score' in col.lower() or 'rate' in col.lower():
+                table_data[col] = np.random.uniform(0, 100, record_count)
+            elif 'amount' in col.lower() or 'balance' in col.lower():
+                table_data[col] = np.random.uniform(100, 10000, record_count)
+            elif 'id' in col.lower():
+                table_data[col] = key_values
+            else:
+                table_data[col] = np.random.uniform(1, 100, record_count)
+        
+        # Add target column with some intentional mismatches for testing
+        table_data[target_column] = np.random.choice(['MATCH', 'MISMATCH'], record_count, p=[0.75, 0.25])
+        
+        # Create single dataframe containing both source and target columns
+        combined_df = pd.DataFrame(table_data)
+        
+        # For same-table validation, source_df and target_df are the same
+        # joined_df is also the same since no join is needed
+        self.logger.info(f"Created same-table validation data for {table_name} with {len(combined_df)} records")
+        self.logger.info(f"   Source columns: {source_columns}")
+        self.logger.info(f"   Target column: {target_column}")
+        self.logger.info(f"   No join key validation needed (same table)")
+        
+        return combined_df, combined_df, combined_df
+    
+    def create_cross_table_validation_data(self, source_table: str, target_table: str, join_key: str,
+                                         source_columns: List[str], target_column: str, record_count: int = 1000) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """
+        Create sample data for cross-table validation scenarios with proper joins.
+        
+        Args:
+            source_table: Source table name
+            target_table: Target table name
+            join_key: Column name for joining tables
+            source_columns: List of source column names
+            target_column: Target column name
+            record_count: Number of records to generate
+            
+        Returns:
+            Tuple of (source_df, target_df, joined_df)
+        """
         # Generate join key values
         join_values = range(1, record_count + 1)
         
