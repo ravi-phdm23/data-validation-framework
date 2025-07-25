@@ -2,6 +2,25 @@
 
 A comprehensive Python framework for validating enterprise data using Excel mapping files with Google BigQuery integration. Designed for enterprise environments with proxy support and flexible data source management.
 
+## 🆕 Enhanced Join-Based Validation (Latest Feature)
+
+**New in this release**: Enhanced validation with proper table relationships!
+
+- **`enhanced_data_validation_script_py`**: Advanced validation with proper table joins
+- **`create_enhanced_mapping.py`**: Generator for Excel files with join key structure
+- **Realistic validation**: Tables are joined using primary keys before applying derivation logic
+- **Complex transformations**: Multi-column derivations with SQL-like expressions
+- **Sample data generation**: Creates realistic test data with proper table relationships
+
+**Quick Start with Enhanced Validation:**
+```bash
+# Generate enhanced mapping file with join keys
+python create_enhanced_mapping.py
+
+# Run enhanced validation
+python enhanced_data_validation_script_py --excel enhanced_validation_mapping_YYYYMMDD_HHMMSS.xlsx --test True
+```
+
 > **📋 Corporate Environment Note**: Python files use `_py` extension instead of `.py` to bypass corporate download restrictions. Rename `data_validation_script_py` → `data_validation_script.py` and `test_bigquery_py` → `test_bigquery.py` after download.
 
 ## 🏢 Enterprise Features
@@ -96,6 +115,28 @@ Your Excel file should contain the following columns:
 | Transformation Logic | Description of transformation | Yes | `copy` or `derived using col A + B` |
 | Join Condition | SQL condition to join tables | Yes | `s.id = t.id` |
 | Optional WHERE Clause | Additional filtering conditions | No | `s.status = "ACTIVE"` |
+
+## Enhanced Excel Structure (Join-Based Validation)
+
+For the enhanced validation script, use this structure which supports proper table relationships:
+
+| Column Name | Description | Required | Example |
+|-------------|-------------|----------|---------|
+| Source_Table | Source table name | Yes | `customer_source` |
+| Target_Table | Target table name | Yes | `customer_target` |
+| Join_Key | Primary/Foreign key for joining | Yes | `customer_id` |
+| Source_Column | Source column name(s) | Yes | `first_name` or `amount, fee_rate` |
+| Target_Column | Target column name | Yes | `customer_first_name` |
+| Derivation_Logic | SQL-like transformation | Yes | `UPPER(source.first_name)` |
+| Validation_Type | Type of validation | Yes | `Transformation` |
+| Business_Rule | Business context | No | `Name standardization` |
+
+**Generate Enhanced Structure:**
+```bash
+python create_enhanced_mapping.py
+```
+
+This creates a complete Excel file with sample data for realistic testing.
 
 ### Transformation Logic Types
 
