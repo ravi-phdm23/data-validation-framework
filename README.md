@@ -1,13 +1,13 @@
-# Banking Data Validation Script
+# Enterprise Data Validation Framework
 
-A comprehensive Python script for validating banking domain data using Excel mapping files with Google BigQuery integration. Designed for enterprise environments with proxy support and flexible data source management.
+A comprehensive Python framework for validating enterprise data using Excel mapping files with Google BigQuery integration. Designed for enterprise environments with proxy support and flexible data source management.
 
 ## 🏢 Enterprise Features
 
 - **Office Network Support**: Automatic proxy configuration for development environments
 - **Multi-Environment**: Production and development BigQuery connections
 - **Excel Integration**: Automatic column detection and mapping
-- **Banking Domain**: CRM enrichment, transaction validation, loan reconciliation, risk assessment
+- **Financial Domain**: CRM enrichment, transaction validation, loan reconciliation, risk assessment
 
 ## 🚀 Quick Start
 
