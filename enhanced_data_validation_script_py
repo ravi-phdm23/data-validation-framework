@@ -184,9 +184,82 @@ class EnhancedDataValidationProcessor:
         # Create joined dataset
         joined_df = source_df.merge(target_df, on=join_key, how='inner')
         
+        # Validate join key uniqueness
+        self.validate_join_key_uniqueness(source_df, target_df, join_key, source_table, target_table)
+        
         self.logger.info(f"Created sample data for {source_table} -> {target_table} with {len(joined_df)} joined records")
         
         return source_df, target_df, joined_df
+    
+    def validate_join_key_uniqueness(self, source_df: pd.DataFrame, target_df: pd.DataFrame, 
+                                   join_key: str, source_table: str, target_table: str):
+        """
+        Validate that join keys produce unique records in both source and target tables.
+        
+        Args:
+            source_df: Source DataFrame
+            target_df: Target DataFrame
+            join_key: Column name used for joining
+            source_table: Source table name for logging
+            target_table: Target table name for logging
+        """
+        # Check source table join key uniqueness
+        source_total = len(source_df)
+        source_unique = source_df[join_key].nunique()
+        source_duplicates = source_total - source_unique
+        
+        if source_duplicates > 0:
+            self.logger.warning(f"[WARNING] JOIN KEY ISSUE - {source_table}: Found {source_duplicates} duplicate join key values out of {source_total} records")
+            self.logger.warning(f"   Join key '{join_key}' uniqueness: {source_unique}/{source_total} ({(source_unique/source_total)*100:.1f}%)")
+            
+            # Show sample duplicates
+            duplicate_keys = source_df[source_df.duplicated(subset=[join_key], keep=False)][join_key].unique()[:5]
+            self.logger.warning(f"   Sample duplicate keys: {list(duplicate_keys)}")
+        else:
+            self.logger.info(f"[SUCCESS] JOIN KEY VALID - {source_table}: All {source_total} records have unique join keys")
+        
+        # Check target table join key uniqueness  
+        target_total = len(target_df)
+        target_unique = target_df[join_key].nunique()
+        target_duplicates = target_total - target_unique
+        
+        if target_duplicates > 0:
+            self.logger.warning(f"[WARNING] JOIN KEY ISSUE - {target_table}: Found {target_duplicates} duplicate join key values out of {target_total} records")
+            self.logger.warning(f"   Join key '{join_key}' uniqueness: {target_unique}/{target_total} ({(target_unique/target_total)*100:.1f}%)")
+            
+            # Show sample duplicates
+            duplicate_keys = target_df[target_df.duplicated(subset=[join_key], keep=False)][join_key].unique()[:5]
+            self.logger.warning(f"   Sample duplicate keys: {list(duplicate_keys)}")
+        else:
+            self.logger.info(f"[SUCCESS] JOIN KEY VALID - {target_table}: All {target_total} records have unique join keys")
+        
+        # Check join coverage
+        source_keys = set(source_df[join_key])
+        target_keys = set(target_df[join_key])
+        
+        common_keys = source_keys.intersection(target_keys)
+        source_only = source_keys - target_keys
+        target_only = target_keys - source_keys
+        
+        self.logger.info(f"[INFO] JOIN COVERAGE ANALYSIS:")
+        self.logger.info(f"   Common join keys: {len(common_keys)} (will produce joined records)")
+        
+        if len(source_only) > 0:
+            self.logger.warning(f"   Keys only in {source_table}: {len(source_only)} (will be lost in inner join)")
+            if len(source_only) <= 5:
+                self.logger.warning(f"   Sample source-only keys: {list(source_only)}")
+        
+        if len(target_only) > 0:
+            self.logger.warning(f"   Keys only in {target_table}: {len(target_only)} (will be lost in inner join)")
+            if len(target_only) <= 5:
+                self.logger.warning(f"   Sample target-only keys: {list(target_only)}")
+        
+        # Calculate join efficiency
+        join_efficiency = len(common_keys) / max(len(source_keys), len(target_keys)) * 100
+        if join_efficiency < 90:
+            self.logger.warning(f"[WARNING] LOW JOIN EFFICIENCY: {join_efficiency:.1f}% - Consider checking data quality")
+        else:
+            self.logger.info(f"[SUCCESS] GOOD JOIN EFFICIENCY: {join_efficiency:.1f}%")
     
     def apply_derivation_logic(self, joined_df: pd.DataFrame, derivation_logic: str, 
                               source_columns: List[str]) -> pd.Series:

@@ -133,15 +133,22 @@ def create_sample_test_data():
     np.random.seed(42)
     n_customers = 1000
     
+    # Create some intentional duplicates for join key validation testing (5% duplicates)
+    duplicate_count = int(n_customers * 0.05)
+    unique_ids = list(range(1, n_customers - duplicate_count + 1))
+    duplicate_ids = np.random.choice(unique_ids[:50], duplicate_count, replace=True)
+    customer_ids = unique_ids + list(duplicate_ids)
+    np.random.shuffle(customer_ids)
+    
     customer_source = pd.DataFrame({
-        'customer_id': range(1, n_customers + 1),
-        'first_name': [f'John{i}' for i in range(n_customers)],
-        'last_name': [f'Doe{i}' for i in range(n_customers)],
-        'credit_score': np.random.randint(300, 850, n_customers),
-        'date_of_birth': pd.date_range('1960-01-01', '2000-12-31', periods=n_customers)
+        'customer_id': customer_ids,
+        'first_name': [f'John{i}' for i in range(len(customer_ids))],
+        'last_name': [f'Doe{i}' for i in range(len(customer_ids))],
+        'credit_score': np.random.randint(300, 850, len(customer_ids)),
+        'date_of_birth': pd.date_range('1960-01-01', '2000-12-31', periods=len(customer_ids))
     })
     
-    # Sample account data
+    # Sample account data (with unique account IDs but some customers may have multiple accounts)
     n_accounts = 1500
     account_source = pd.DataFrame({
         'account_id': range(1, n_accounts + 1),
@@ -152,7 +159,7 @@ def create_sample_test_data():
         'last_transaction_date': pd.date_range('2024-01-01', '2025-07-25', periods=n_accounts)
     })
     
-    # Sample transaction data  
+    # Sample transaction data (with unique transaction IDs)  
     n_transactions = 5000
     transaction_source = pd.DataFrame({
         'transaction_id': range(1, n_transactions + 1),
@@ -161,7 +168,7 @@ def create_sample_test_data():
         'fee_rate': np.random.uniform(0.1, 2.5, n_transactions)
     })
     
-    # Sample loan data
+    # Sample loan data (with unique loan IDs)
     n_loans = 800
     loan_source = pd.DataFrame({
         'loan_id': range(1, n_loans + 1),
