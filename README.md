@@ -2,6 +2,8 @@
 
 A comprehensive Python framework for validating enterprise data using Excel mapping files with Google BigQuery integration. Designed for enterprise environments with proxy support and flexible data source management.
 
+> **📋 Corporate Environment Note**: Python files use `_py` extension instead of `.py` to bypass corporate download restrictions. Rename `data_validation_script_py` → `data_validation_script.py` and `test_bigquery_py` → `test_bigquery.py` after download.
+
 ## 🏢 Enterprise Features
 
 - **Office Network Support**: Automatic proxy configuration for development environments
@@ -33,6 +35,35 @@ python data_validation_script.py --excel your_mapping_file.xlsx --test False --p
 ```bash
 python data_validation_script.py --excel your_mapping_file.xlsx --test False --project myproject-prod --environment prod --source Baseline
 ```
+
+## 🔧 Corporate Environment Setup
+
+**Important**: If your corporate environment blocks `.py` files, the Python files in this repository use `_py` extension:
+
+### Quick Setup (Automated)
+**Windows:**
+```cmd
+setup_corporate.bat
+```
+
+**Linux/Mac:**
+```bash
+chmod +x setup_corporate.sh
+./setup_corporate.sh
+```
+
+### Manual Setup
+1. **Download files**: `data_validation_script_py` and `test_bigquery_py`
+2. **Rename locally**: Change `_py` to `.py` after download
+   ```bash
+   # Windows
+   ren data_validation_script_py data_validation_script.py
+   ren test_bigquery_py test_bigquery.py
+   
+   # Linux/Mac
+   mv data_validation_script_py data_validation_script.py
+   mv test_bigquery_py test_bigquery.py
+   ```
 - **Comprehensive Validation**: Supports direct copy and derived transformation validations
 - **Detailed Logging**: Timestamped logs with validation progress and results
 - **Flexible Input**: Excel-based mapping configuration with optional WHERE clauses
