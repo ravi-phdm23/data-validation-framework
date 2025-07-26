@@ -229,6 +229,26 @@ def main():
         The Excel file should follow the enhanced mapping format with business logic.
         """)
         
+        # Sample file download section
+        st.subheader("📥 Download Sample File")
+        st.markdown("**Need a template?** Download our sample BigQuery test scenarios file to get started.")
+        
+        # Load and provide download for sample file
+        try:
+            sample_file_path = "BigQuery_Test_Scenarios_Sample.xlsx"
+            with open(sample_file_path, "rb") as file:
+                st.download_button(
+                    label="⬇️ Download Sample Excel Template",
+                    data=file.read(),
+                    file_name="BigQuery_Test_Scenarios_Sample.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    help="Download this sample file to understand the expected format and structure"
+                )
+        except FileNotFoundError:
+            st.warning("⚠️ Sample file not found. You can create one using the create_excel_sample.py script.")
+        
+        st.divider()
+        
         # File upload section
         uploaded_file = st.file_uploader(
             "Choose Excel file",
