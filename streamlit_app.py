@@ -1090,14 +1090,28 @@ def execute_all_excel_scenarios():
             # Process validation results
             validation_data = result['data']
             
-            # Calculate totals from the new validation format
-            total_rows = validation_data['row_count'].sum() if 'row_count' in validation_data.columns else 0
-            pass_rows = validation_data[validation_data['validation_status'] == 'PASS']['row_count'].sum() if not validation_data.empty and 'validation_status' in validation_data.columns and 'PASS' in validation_data['validation_status'].values else 0
-            fail_rows = validation_data[validation_data['validation_status'] == 'FAIL']['row_count'].sum() if not validation_data.empty and 'validation_status' in validation_data.columns and 'FAIL' in validation_data['validation_status'].values else 0
-            info_rows = validation_data[validation_data['validation_status'] == 'INFO']['row_count'].sum() if not validation_data.empty and 'validation_status' in validation_data.columns and 'INFO' in validation_data['validation_status'].values else 0
-            
-            # For our new validation approach, treat INFO as additional PASS rows
-            pass_rows += info_rows
+            # Calculate totals from the new validation format - get the actual row count being validated
+            # NOTE: Each scenario returns multiple result rows (PASS, INFO, etc.) but we want the actual
+            # number of target table rows validated, not the sum of all result rows (which would double-count)
+            if not validation_data.empty and 'row_count' in validation_data.columns:
+                # Get the actual number of rows in the target table being validated (usually the first PASS record)
+                pass_record = validation_data[validation_data['validation_status'] == 'PASS']
+                total_rows = pass_record['row_count'].iloc[0] if not pass_record.empty else validation_data['row_count'].iloc[0]
+                
+                # For transformation validation, we consider all processed rows as "passed" 
+                # since the query executed successfully and processed the data
+                pass_rows = total_rows
+                fail_rows = 0  # Failures would be caught as exceptions
+                
+                # If there are specific FAIL records, count those
+                fail_record = validation_data[validation_data['validation_status'] == 'FAIL']
+                if not fail_record.empty:
+                    fail_rows = fail_record['row_count'].sum()
+                    pass_rows = total_rows - fail_rows
+            else:
+                total_rows = len(validation_data)
+                pass_rows = total_rows
+                fail_rows = 0
             
             # Determine overall status - if we have results, it's a successful validation
             overall_status = 'PASS' if total_rows > 0 else 'FAIL'
@@ -1133,7 +1147,7 @@ def execute_all_excel_scenarios():
                     'Execution_Timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 })
             
-            st.success(f"✅ {scenario['name']} - Total: {total_rows}, Processed: {pass_rows}, Issues: {fail_rows}")
+            st.success(f"✅ {scenario['name']} - Target table rows validated: {total_rows}, Valid: {pass_rows}, Issues: {fail_rows}")
         else:
             # Store failed result
             st.session_state['scenario_results'].append({
@@ -1180,16 +1194,28 @@ def create_detailed_results_excel(detailed_results):
     summary_stats = []
     for scenario_name in results_df['Scenario_Name'].unique():
         scenario_data = results_df[results_df['Scenario_Name'] == scenario_name]
-        total_rows = scenario_data['Row_Count'].sum()
-        pass_rows = scenario_data[scenario_data['Validation_Status'] == 'PASS']['Row_Count'].sum()
-        fail_rows = scenario_data[scenario_data['Validation_Status'] == 'FAIL']['Row_Count'].sum()
+        
+        # Fix: Get actual target table row count, not sum of validation result rows
+        # Same logic as in execute_all_excel_scenarios() - get the PASS record row count
+        pass_record = scenario_data[scenario_data['Validation_Status'] == 'PASS']
+        total_rows = pass_record['Row_Count'].iloc[0] if not pass_record.empty else scenario_data['Row_Count'].iloc[0]
+        
+        # For pass/fail counts, we use the corrected total_rows as base
+        pass_rows = total_rows  # All processed rows are considered passed since query succeeded
+        fail_rows = 0  # Failures would be caught as exceptions
+        
+        # If there are specific FAIL records, count those
+        fail_record = scenario_data[scenario_data['Validation_Status'] == 'FAIL']
+        if not fail_record.empty:
+            fail_rows = fail_record['Row_Count'].iloc[0]  # Get actual fail count, not sum
+            pass_rows = total_rows - fail_rows
         
         summary_stats.append({
             'Scenario_Name': scenario_name,
             'Source_Table': scenario_data.iloc[0]['Source_Table'],
             'Target_Table': scenario_data.iloc[0]['Target_Table'],
             'Target_Column': scenario_data.iloc[0]['Target_Column'],
-            'Total_Rows_Checked': total_rows,
+            'Total_Rows_Checked': total_rows,  # Now shows actual target table rows, not inflated sum
             'Pass_Count': pass_rows,
             'Fail_Count': fail_rows,
             'Pass_Percentage': round(pass_rows * 100.0 / total_rows if total_rows > 0 else 0, 2),
