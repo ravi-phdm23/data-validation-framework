@@ -24,14 +24,13 @@ def test_sql_tracking():
             'SQL_Query_Used': '''-- Transformation Validation: full_name
 -- Source Table: customers
 -- Derivation Logic: CONCAT(first_name, " ", last_name)
--- Testing transformation logic against source data
+-- Testing transformation logic against ALL source data
 
 WITH transformed_data AS (
     SELECT 
         customer_id,
         CONCAT(first_name, " ", last_name) as calculated_full_name
     FROM `cohesive-apogee-411113.banking_sample_data.customers`
-    LIMIT 1000
 ),
 validation_summary AS (
     SELECT 

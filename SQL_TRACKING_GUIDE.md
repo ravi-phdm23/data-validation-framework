@@ -46,7 +46,6 @@ WITH transformed_data AS (
         customer_id,
         CONCAT(first_name, " ", last_name) as calculated_full_name
     FROM `cohesive-apogee-411113.banking_sample_data.customers`
-    LIMIT 1000
 ),
 validation_summary AS (
     SELECT 
