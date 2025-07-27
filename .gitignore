@@ -143,12 +143,12 @@ settings.ini
 
 # Temporary test files
 *_test_*.xlsx
-*_scenarios_*.xlsx
 bigquery_scenarios_*.log
 sample_*.csv
 test_output_*.csv
 
 # Allow essential sample files for deployment
+!BigQuery_Test_Scenarios.xlsx
 !BigQuery_Test_Scenarios_Sample.xlsx
 
 # Duplicate/versioned files
