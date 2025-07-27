@@ -368,7 +368,8 @@ def main():
                 |--------|-------------|---------|
                 | `Source_Table` | Source table name | `customers` |
                 | `Target_Table` | Target table name (optional) | `customer_summary` |
-                | `Join_Key` | Key column for joining | `customer_id` |
+                | `Source_Join_Key` | Join key in source table | `customer_id` |
+                | `Target_Join_Key` | Join key in target table | `cust_id` |
                 | `Target_Column` | Column to validate | `total_balance` |
                 | `Derivation_Logic` | **High-level business logic** | `SUM(amount) GROUP_BY account_number` |
                 | `Validation_Type` | Type of validation | `Aggregation` |
@@ -667,20 +668,36 @@ def generate_scenarios_from_excel(df, project_id, dataset_id):
             # Extract mapping information
             source_table = row.get('Source_Table', '')
             target_table = row.get('Target_Table', '')
-            join_key = row.get('Join_Key', '')
+            source_join_key = row.get('Source_Join_Key', '')
+            target_join_key = row.get('Target_Join_Key', '')
             target_column = row.get('Target_Column', '')
             derivation_logic = row.get('Derivation_Logic', '')
             scenario_name = row.get('Scenario_Name', f'Transformation_{index+1}')
             
             # Skip rows with missing essential data
-            if not all([source_table, target_table, join_key, target_column, derivation_logic]):
+            if not all([source_table, target_table, source_join_key, target_join_key, target_column, derivation_logic]):
                 continue
             
-            # Create transformation validation SQL
-            sql_query = create_transformation_validation_sql(
-                source_table, target_table, join_key, target_column, 
-                derivation_logic, project_id, dataset_id
-            )
+            # Create transformation validation SQL with composite key support
+            try:
+                # First try the enhanced composite key SQL
+                sql_query = create_enhanced_transformation_sql(
+                    source_table, target_table, source_join_key, target_join_key, target_column, 
+                    derivation_logic, project_id, dataset_id
+                )
+                
+                # Fallback to original SQL if enhanced version fails
+                if "Error:" in sql_query:
+                    sql_query = create_transformation_validation_sql(
+                        source_table, target_table, source_join_key, target_join_key, target_column, 
+                        derivation_logic, project_id, dataset_id
+                    )
+            except Exception as e:
+                # Use original SQL as fallback
+                sql_query = create_transformation_validation_sql(
+                    source_table, target_table, source_join_key, target_join_key, target_column, 
+                    derivation_logic, project_id, dataset_id
+                )
             
             scenarios.append({
                 'name': scenario_name,
@@ -690,7 +707,8 @@ def generate_scenarios_from_excel(df, project_id, dataset_id):
                 'target_table': target_table,
                 'target_column': target_column,
                 'derivation_logic': derivation_logic,
-                'join_key': join_key
+                'source_join_key': source_join_key,
+                'target_join_key': target_join_key
             })
             
         except Exception as e:
@@ -699,28 +717,42 @@ def generate_scenarios_from_excel(df, project_id, dataset_id):
     
     return scenarios
 
-def create_transformation_validation_sql(source_table, target_table, join_key, target_column, derivation_logic, project_id, dataset_id):
-    """Create SQL for transformation validation that works with existing tables only."""
+def create_transformation_validation_sql(source_table, target_table, source_join_key, target_join_key, target_column, derivation_logic, project_id, dataset_id):
+    """Create SQL for transformation validation that works with existing tables only.
+    Supports both single and composite join keys (comma-separated).
+    """
     
     source_ref = f"`{project_id}.{dataset_id}.{source_table}`"
     
-    # Since we only have customers and transactions tables, create validation queries
-    # that test the derivation logic against the source data itself
+    # Handle composite keys - split by comma and clean whitespace
+    source_keys = [key.strip() for key in source_join_key.split(',')]
+    target_keys = [key.strip() for key in target_join_key.split(',')]
+    
+    # Create join key selections for SQL
+    source_key_select = ', '.join(source_keys)
+    source_key_group = ', '.join(source_keys)
+    
+    # Create a unique identifier for composite keys
+    if len(source_keys) > 1:
+        composite_key_comment = f"Composite Key: {' + '.join(source_keys)}"
+    else:
+        composite_key_comment = f"Single Key: {source_keys[0]}"
     
     if any(func in derivation_logic.upper() for func in ['SUM(', 'COUNT(', 'AVG(', 'MAX(', 'MIN(']):
         # Aggregation scenario - test the aggregation logic
         sql = f"""
 -- Transformation Validation: {target_column}
 -- Source Table: {source_table}
+-- {composite_key_comment}
 -- Derivation Logic: {derivation_logic}
 -- Testing aggregation logic against source data
 
 WITH transformed_data AS (
     SELECT 
-        {join_key},
+        {source_key_select},
         {derivation_logic} as calculated_{target_column}
     FROM {source_ref}
-    GROUP BY {join_key}
+    GROUP BY {source_key_group}
 ),
 validation_summary AS (
     SELECT 
@@ -755,12 +787,13 @@ WHERE total_rows > 0
         sql = f"""
 -- Transformation Validation: {target_column}
 -- Source Table: {source_table}
+-- {composite_key_comment}
 -- Derivation Logic: {derivation_logic}
 -- Testing transformation logic against ALL source data
 
 WITH transformed_data AS (
     SELECT 
-        {join_key},
+        {source_key_select},
         {derivation_logic} as calculated_{target_column}
     FROM {source_ref}
 ),
@@ -800,6 +833,136 @@ SELECT
     non_null_rows as row_count,
     ROUND(non_null_rows * 100.0 / total_rows, 2) as percentage,
     CONCAT('Non-null results: ', CAST(non_null_rows AS STRING), ' out of ', CAST(total_rows AS STRING)) as details
+FROM validation_summary
+WHERE total_rows > 0
+"""
+    
+    return sql
+
+def parse_join_keys(join_key_str):
+    """Parse join key string into list of column names.
+    Supports both single keys and comma-separated composite keys.
+    """
+    if not join_key_str:
+        return []
+    
+    # Split by comma and clean whitespace
+    keys = [key.strip() for key in join_key_str.split(',')]
+    return [key for key in keys if key]  # Remove empty strings
+
+def create_join_condition(source_keys, target_keys, source_alias='s', target_alias='t'):
+    """Create SQL JOIN condition for composite keys."""
+    if len(source_keys) != len(target_keys):
+        raise ValueError(f"Source keys ({len(source_keys)}) and target keys ({len(target_keys)}) count mismatch")
+    
+    conditions = []
+    for src_key, tgt_key in zip(source_keys, target_keys):
+        conditions.append(f"{source_alias}.{src_key} = {target_alias}.{tgt_key}")
+    
+    return " AND ".join(conditions)
+
+def create_enhanced_transformation_sql(source_table, target_table, source_join_key, target_join_key, target_column, derivation_logic, project_id, dataset_id):
+    """Enhanced SQL generation with composite key support."""
+    
+    source_ref = f"`{project_id}.{dataset_id}.{source_table}`"
+    
+    # Parse composite keys
+    source_keys = parse_join_keys(source_join_key)
+    target_keys = parse_join_keys(target_join_key)
+    
+    if not source_keys or not target_keys:
+        return f"-- Error: Invalid join keys\n-- Source: '{source_join_key}'\n-- Target: '{target_join_key}'"
+    
+    # Create key descriptions for SQL comments
+    if len(source_keys) == 1:
+        key_comment = f"Single Key: {source_keys[0]} → {target_keys[0]}"
+    else:
+        key_comment = f"Composite Key ({len(source_keys)} columns): {' + '.join(source_keys)} → {' + '.join(target_keys)}"
+    
+    # Create source key selections
+    source_key_select = ', '.join(source_keys)
+    source_key_group = ', '.join(source_keys)
+    
+    # Determine if this is an aggregation
+    is_aggregation = any(func in derivation_logic.upper() for func in ['SUM(', 'COUNT(', 'AVG(', 'MAX(', 'MIN('])
+    
+    if is_aggregation:
+        sql = f"""
+-- Composite Key Transformation Validation: {target_column}
+-- Source Table: {source_table}
+-- Target Table: {target_table}  
+-- {key_comment}
+-- Derivation Logic: {derivation_logic}
+
+WITH source_transformed AS (
+    SELECT 
+        {source_key_select},
+        {derivation_logic} as calculated_{target_column}
+    FROM {source_ref}
+    GROUP BY {source_key_group}
+),
+validation_summary AS (
+    SELECT 
+        COUNT(*) as total_composite_groups,
+        COUNT(calculated_{target_column}) as non_null_groups,
+        COUNT(*) - COUNT(calculated_{target_column}) as null_groups,
+        AVG(CAST(calculated_{target_column} AS FLOAT64)) as avg_value
+    FROM source_transformed
+)
+SELECT 
+    'PASS' as validation_status,
+    total_composite_groups as row_count,
+    100.0 as percentage,
+    CONCAT('Composite key aggregation successful: ', CAST(total_composite_groups AS STRING), ' unique key combinations processed') as details
+FROM validation_summary
+WHERE total_composite_groups > 0
+
+UNION ALL
+
+SELECT 
+    'INFO' as validation_status,
+    non_null_groups as row_count,
+    ROUND(non_null_groups * 100.0 / NULLIF(total_composite_groups, 0), 2) as percentage,
+    CONCAT('Non-null results: ', CAST(non_null_groups AS STRING), ' out of ', CAST(total_composite_groups AS STRING), ' composite key groups') as details
+FROM validation_summary
+WHERE total_composite_groups > 0
+"""
+    else:
+        sql = f"""
+-- Composite Key Transformation Validation: {target_column}
+-- Source Table: {source_table}
+-- Target Table: {target_table}
+-- {key_comment}
+-- Derivation Logic: {derivation_logic}
+
+WITH source_transformed AS (
+    SELECT 
+        {source_key_select},
+        {derivation_logic} as calculated_{target_column}
+    FROM {source_ref}
+),
+validation_summary AS (
+    SELECT 
+        COUNT(*) as total_rows,
+        COUNT(DISTINCT CONCAT({', "_", '.join([f'CAST({key} AS STRING)' for key in source_keys])})) as unique_composite_keys,
+        COUNT(calculated_{target_column}) as non_null_rows
+    FROM source_transformed
+)
+SELECT 
+    'PASS' as validation_status,
+    total_rows as row_count,
+    100.0 as percentage,
+    CONCAT('Composite key transformation successful: ', CAST(total_rows AS STRING), ' rows with ', CAST(unique_composite_keys AS STRING), ' unique key combinations') as details
+FROM validation_summary
+WHERE total_rows > 0
+
+UNION ALL
+
+SELECT 
+    'INFO' as validation_status,
+    unique_composite_keys as row_count,
+    ROUND(unique_composite_keys * 100.0 / NULLIF(total_rows, 0), 2) as percentage,
+    CONCAT('Unique composite keys: ', CAST(unique_composite_keys AS STRING), ' out of ', CAST(total_rows AS STRING), ' total rows') as details
 FROM validation_summary
 WHERE total_rows > 0
 """
@@ -1265,7 +1428,8 @@ def create_working_sample_excel(project_id, dataset_id):
             'Scenario_Name': 'Customer_Balance_Validation',
             'Source_Table': 'customers',
             'Target_Table': 'customers',  # Testing against same table
-            'Join_Key': 'customer_id',
+            'Source_Join_Key': 'customer_id',
+            'Target_Join_Key': 'customer_id',
             'Target_Column': 'balance',
             'Derivation_Logic': 'balance',
             'Validation_Type': 'Data_Quality',
@@ -1275,7 +1439,8 @@ def create_working_sample_excel(project_id, dataset_id):
             'Scenario_Name': 'Transaction_Count_Per_Customer',
             'Source_Table': 'transactions',
             'Target_Table': 'transactions',
-            'Join_Key': 'account_number',
+            'Source_Join_Key': 'account_number',
+            'Target_Join_Key': 'account_number',
             'Target_Column': 'transaction_count',
             'Derivation_Logic': 'COUNT(*)',
             'Validation_Type': 'Aggregation',
@@ -1285,7 +1450,8 @@ def create_working_sample_excel(project_id, dataset_id):
             'Scenario_Name': 'Customer_Email_Format_Check',
             'Source_Table': 'customers',
             'Target_Table': 'customers',
-            'Join_Key': 'customer_id',
+            'Source_Join_Key': 'customer_id',
+            'Target_Join_Key': 'customer_id',
             'Target_Column': 'email',
             'Derivation_Logic': 'VALIDATE_EMAIL_FORMAT(email)',
             'Validation_Type': 'Format_Validation',
@@ -1295,7 +1461,8 @@ def create_working_sample_excel(project_id, dataset_id):
             'Scenario_Name': 'Transaction_Amount_Range_Check',
             'Source_Table': 'transactions',
             'Target_Table': 'transactions',
-            'Join_Key': 'transaction_id',
+            'Source_Join_Key': 'transaction_id',
+            'Target_Join_Key': 'transaction_id',
             'Target_Column': 'amount',
             'Derivation_Logic': 'RANGE_CHECK(amount, min_value=0, max_value=100000)',
             'Validation_Type': 'Range_Validation',
@@ -1305,7 +1472,8 @@ def create_working_sample_excel(project_id, dataset_id):
             'Scenario_Name': 'Customer_Duplicate_Email_Check',
             'Source_Table': 'customers',
             'Target_Table': 'customers',
-            'Join_Key': 'customer_id',
+            'Source_Join_Key': 'customer_id',
+            'Target_Join_Key': 'customer_id',
             'Target_Column': 'email',
             'Derivation_Logic': 'FIND_DUPLICATES(email)',
             'Validation_Type': 'Duplicate_Detection',
@@ -1315,7 +1483,8 @@ def create_working_sample_excel(project_id, dataset_id):
             'Scenario_Name': 'Total_Transaction_Amount_Per_Customer',
             'Source_Table': 'transactions',
             'Target_Table': 'transactions',
-            'Join_Key': 'account_number',
+            'Source_Join_Key': 'account_number',
+            'Target_Join_Key': 'account_number',
             'Target_Column': 'total_amount',
             'Derivation_Logic': 'SUM(amount) GROUP_BY account_number',
             'Validation_Type': 'Aggregation',
@@ -1325,7 +1494,8 @@ def create_working_sample_excel(project_id, dataset_id):
             'Scenario_Name': 'Referential_Integrity_Check',
             'Source_Table': 'transactions',
             'Target_Table': 'customers',
-            'Join_Key': 'account_number',
+            'Source_Join_Key': 'account_number',
+            'Target_Join_Key': 'customer_id',  # Different join key in target
             'Target_Column': 'orphaned_transactions',
             'Derivation_Logic': 'CHECK_ORPHANED_RECORDS(transactions.account_number NOT IN customers.account_number)',
             'Validation_Type': 'Referential_Integrity',
@@ -1335,7 +1505,8 @@ def create_working_sample_excel(project_id, dataset_id):
             'Scenario_Name': 'Customer_Data_Completeness',
             'Source_Table': 'customers',
             'Target_Table': 'customers',
-            'Join_Key': 'customer_id',
+            'Source_Join_Key': 'customer_id',
+            'Target_Join_Key': 'customer_id',
             'Target_Column': 'completeness_check',
             'Derivation_Logic': 'CHECK_NOT_NULL(customer_id, first_name, last_name, email)',
             'Validation_Type': 'Data_Completeness',
@@ -1371,7 +1542,8 @@ def create_working_sample_excel(project_id, dataset_id):
             {'Column': 'Scenario_Name', 'Description': 'Unique name for the validation scenario', 'Required': 'Yes'},
             {'Column': 'Source_Table', 'Description': 'Table name in BigQuery (customers or transactions)', 'Required': 'Yes'},
             {'Column': 'Target_Table', 'Description': 'Table to validate against (can be same as source)', 'Required': 'Yes'},
-            {'Column': 'Join_Key', 'Description': 'Column used for joining/grouping', 'Required': 'Yes'},
+            {'Column': 'Source_Join_Key', 'Description': 'Column used for joining in SOURCE table', 'Required': 'Yes'},
+            {'Column': 'Target_Join_Key', 'Description': 'Column used for joining in TARGET table (can be different)', 'Required': 'Yes'},
             {'Column': 'Target_Column', 'Description': 'Column being validated', 'Required': 'Yes'},
             {'Column': 'Derivation_Logic', 'Description': 'Business logic to test (see examples)', 'Required': 'Yes'},
             {'Column': 'Validation_Type', 'Description': 'Type of validation being performed', 'Required': 'No'},
@@ -1392,7 +1564,8 @@ def create_enhanced_mapping_template():
             'Function': 'Customer Balance Validation',
             'Source_Table': 'customers',
             'Target_Table': 'customer_summary',
-            'Join_Key': 'customer_id',
+            'Source_Join_Key': 'customer_id',
+            'Target_Join_Key': 'cust_id',  # Different name in target
             'Target_Column': 'total_balance',
             'Derivation_Logic': 'source.balance',
             'Expected_Result': 'Customer balance from source',
@@ -1404,7 +1577,8 @@ def create_enhanced_mapping_template():
             'Function': 'Transaction Count Aggregation',
             'Source_Table': 'transactions',
             'Target_Table': 'customer_summary',
-            'Join_Key': 'customer_id',
+            'Source_Join_Key': 'account_number',
+            'Target_Join_Key': 'customer_id',  # Different column mapping
             'Target_Column': 'transaction_count',
             'Derivation_Logic': 'COUNT(*)',
             'Expected_Result': 'Count of transactions per customer',
@@ -1416,7 +1590,8 @@ def create_enhanced_mapping_template():
             'Function': 'Account Status Logic',
             'Source_Table': 'customers',
             'Target_Table': 'customer_summary',
-            'Join_Key': 'customer_id',
+            'Source_Join_Key': 'customer_id',
+            'Target_Join_Key': 'customer_id',
             'Target_Column': 'account_status',
             'Derivation_Logic': 'CASE WHEN source.balance > 0 THEN "ACTIVE" ELSE "INACTIVE" END',
             'Expected_Result': 'Active status based on balance',
@@ -1428,7 +1603,7 @@ def create_enhanced_mapping_template():
     # Documentation
     documentation = pd.DataFrame({
         'Column': [
-            'Version', 'Function', 'Source_Table', 'Target_Table', 'Join_Key',
+            'Version', 'Function', 'Source_Table', 'Target_Table', 'Source_Join_Key', 'Target_Join_Key',
             'Target_Column', 'Derivation_Logic', 'Expected_Result', 'Validation_Type', 'Business_Rule'
         ],
         'Description': [
@@ -1436,7 +1611,8 @@ def create_enhanced_mapping_template():
             'Business function being validated', 
             'Source table name in BigQuery dataset',
             'Target table name in BigQuery dataset (optional)',
-            'Primary key column for joining tables',
+            'Primary key column for joining in SOURCE table',
+            'Primary key column for joining in TARGET table (can be different)',
             'Column to be validated in target table',
             'SQL expression for deriving expected value',
             'Description of expected result',
@@ -1444,7 +1620,7 @@ def create_enhanced_mapping_template():
             'Business rule description'
         ],
         'Required': [
-            'Yes', 'Yes', 'Yes', 'No', 'If Target_Table provided',
+            'Yes', 'Yes', 'Yes', 'No', 'If Target_Table provided', 'If Target_Table provided',
             'Yes', 'Yes', 'Yes', 'Yes', 'Yes'
         ]
     })
@@ -1466,7 +1642,8 @@ def generate_sample_mapping_file():
                 'Function': 'Customer Data Validation',
                 'Source_Table': 'customers',
                 'Target_Table': 'customer_summary', 
-                'Join_Key': 'customer_id',
+                'Source_Join_Key': 'customer_id',
+                'Target_Join_Key': 'cust_id',  # Different column name in target
                 'Target_Column': 'full_name',
                 'Derivation_Logic': 'CONCAT(source.first_name, " ", source.last_name)',
                 'Expected_Result': 'Concatenated full name',
@@ -1478,7 +1655,8 @@ def generate_sample_mapping_file():
                 'Function': 'Account Balance Validation',
                 'Source_Table': 'customers',
                 'Target_Table': 'customer_summary',
-                'Join_Key': 'customer_id',
+                'Source_Join_Key': 'customer_id',
+                'Target_Join_Key': 'customer_id',
                 'Target_Column': 'account_balance',
                 'Derivation_Logic': 'source.balance',
                 'Expected_Result': 'Direct copy of balance',
@@ -1490,7 +1668,8 @@ def generate_sample_mapping_file():
                 'Function': 'Risk Assessment',
                 'Source_Table': 'customers',
                 'Target_Table': 'customer_summary',
-                'Join_Key': 'customer_id',
+                'Source_Join_Key': 'customer_id',
+                'Target_Join_Key': 'customer_id',
                 'Target_Column': 'risk_level',
                 'Derivation_Logic': 'CASE WHEN source.balance > 50000 THEN "LOW" WHEN source.balance > 10000 THEN "MEDIUM" ELSE "HIGH" END',
                 'Expected_Result': 'Risk level based on balance',
@@ -1502,7 +1681,8 @@ def generate_sample_mapping_file():
                 'Function': 'Transaction Analysis',
                 'Source_Table': 'transactions',
                 'Target_Table': 'transaction_summary',
-                'Join_Key': 'account_number',
+                'Source_Join_Key': 'account_number',
+                'Target_Join_Key': 'account_id',  # Different column name in target
                 'Target_Column': 'total_amount',
                 'Derivation_Logic': 'SUM(source.amount)',
                 'Expected_Result': 'Sum of all transaction amounts',

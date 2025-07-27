@@ -140,3 +140,16 @@ validation_logs_*.log
 # Custom configuration files
 config.ini
 settings.ini
+
+# Temporary test files
+*_test_*.xlsx
+*_scenarios_*.xlsx
+bigquery_scenarios_*.log
+sample_*.csv
+test_output_*.csv
+
+# Duplicate/versioned files
+*_20*.xlsx
+*_duplicate.py
+*_old.py
+*_backup.*
