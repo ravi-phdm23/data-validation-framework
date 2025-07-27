@@ -238,21 +238,29 @@ def main():
         
         # Sample file download section
         st.subheader("📥 Download Sample File")
-        st.markdown("**Need a template?** Download our sample BigQuery test scenarios file to get started.")
+        st.markdown("**Need a template?** Download our enhanced BigQuery test scenarios file to get started.")
         
         # Load and provide download for sample file
         try:
-            sample_file_path = "BigQuery_Test_Scenarios_Sample.xlsx"
+            sample_file_path = "BigQuery_Test_Scenarios.xlsx"
             with open(sample_file_path, "rb") as file:
                 st.download_button(
-                    label="⬇️ Download Sample Excel Template",
+                    label="⬇️ Download Enhanced Sample Excel Template",
                     data=file.read(),
-                    file_name="BigQuery_Test_Scenarios_Sample.xlsx",
+                    file_name="BigQuery_Test_Scenarios.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    help="Download this sample file to understand the expected format and structure"
+                    help="Download this enhanced sample file with VLOOKUP, conditional logic, and reference table scenarios"
                 )
         except FileNotFoundError:
-            st.warning("⚠️ Sample file not found. You can create one using the create_excel_sample.py script.")
+            st.warning("⚠️ Enhanced sample file not found. Generating a new one...")
+            try:
+                # Try to generate a new sample file
+                import subprocess
+                subprocess.run(["python", "create_enhanced_sample.py"], check=True)
+                st.success("✅ Generated new enhanced sample file!")
+                st.experimental_rerun()
+            except Exception as e:
+                st.error(f"❌ Could not generate sample file: {str(e)}")
         
         st.divider()
         
@@ -340,25 +348,7 @@ def main():
                             st.divider()
                             if st.button("🚀 Execute All Excel Scenarios", type="primary"):
                                 execute_all_excel_scenarios()
-                
-                # Generate ready-to-use sample Excel file
-                st.divider()
-                st.subheader("🎯 Get Started Quickly")
-                
-                st.info("💡 **Don't want to create an Excel file from scratch?** Download a working sample file with real scenarios for your BigQuery tables!")
-                
-                if st.button("📥 Download Working Sample Excel File", type="primary"):
-                    sample_excel = create_working_sample_excel(project_id, dataset_id)
-                    
-                    st.download_button(
-                        label="📄 Download Sample Excel (Ready to Use)",
-                        data=sample_excel,
-                        file_name=f"BigQuery_Validation_Scenarios_Sample_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
-                    st.success("✅ Sample Excel file created! Upload it right back to test the system.")
-                    st.info("📋 This file contains 8 real validation scenarios using your `customers` and `transactions` tables.")
-            
+                                
             except Exception as e:
                 st.error(f"❌ Error reading Excel file: {str(e)}")
                 st.info("Please ensure the Excel file follows the correct format")
@@ -367,9 +357,9 @@ def main():
             # Show instructions when no file is uploaded
             st.info("👆 Upload an Excel file to get started with custom scenarios")
             
-            with st.expander("📖 Excel File Format Guide"):
+            with st.expander("📖 Enhanced Excel File Format Guide"):
                 st.markdown("""
-                ### Required Columns for Business Logic Mapping:
+                ### Core Columns for Business Logic Mapping:
                 
                 | Column | Description | Example |
                 |--------|-------------|---------|
@@ -382,7 +372,41 @@ def main():
                 | `Validation_Type` | Type of validation | `Aggregation` |
                 | `Business_Rule` | Plain English description | `Sum all account balances per customer` |
                 
-                ### ✨ Business Logic Examples (No SQL Required):
+                ### 🆕 Enhanced Reference Table Support:
+                
+                | Column | Description | VLOOKUP Example |
+                |--------|-------------|-----------------|
+                | `Reference_Table` | Lookup/reference table | `interest_rates` |
+                | `Reference_Join_Key` | Key to join with reference | `account_type` |
+                | `Reference_Lookup_Column` | Column to lookup in reference | `account_type` |
+                | `Reference_Return_Column` | Column to return from reference | `rate_value` |
+                | `Business_Conditions` | IF-THEN-ELSE conditions | `balance > 50000 THEN 'Premium'; ELSE 'Standard'` |
+                | `Hardcoded_Values` | Static values for conditions | `Premium=0.05,Standard=0.03,Basic=0.01` |
+                
+                ### ✨ Enhanced Business Logic Examples:
+                
+                **VLOOKUP with Reference Tables:**
+                - `Derivation_Logic`: `VLOOKUP(account_type, interest_rates)`
+                - `Reference_Table`: `interest_rates`
+                - `Reference_Join_Key`: `account_type`
+                - `Reference_Return_Column`: `rate_value`
+                
+                **Conditional Logic with Hardcoded Values:**
+                - `Derivation_Logic`: `IF(balance > 50000, 'Premium', 'Standard')`
+                - `Business_Conditions`: `balance > 50000 THEN Premium; ELSE Standard`
+                - `Hardcoded_Values`: `Premium=High Interest,Standard=Normal Interest`
+                
+                **Multi-table JOIN Operations:**
+                - `Derivation_Logic`: `SOURCE.balance * REFERENCE.multiplier`
+                - `Reference_Table`: `account_multipliers`
+                - `Reference_Join_Key`: `account_type`
+                
+                **Complex Business Rules:**
+                - `Derivation_Logic`: `IF(customer_tier = 'GOLD' AND balance > 100000, 'VIP', 'REGULAR')`
+                - `Reference_Table`: `customer_tiers`
+                - `Business_Conditions`: `customer_tier = 'GOLD' AND balance > 100000 THEN VIP; ELSE REGULAR`
+                
+                ### 🔄 Traditional Logic (Still Supported):
                 
                 **Data Completeness:**
                 - `CHECK_NOT_NULL(customer_id, first_name, email)`
@@ -667,12 +691,12 @@ def main():
             st.info("💡 This preview shows what your transformation validation dashboard will look like after executing scenarios.")
 
 def generate_scenarios_from_excel(df, project_id, dataset_id):
-    """Generate BigQuery transformation validation scenarios from Excel mapping."""
+    """Generate BigQuery transformation validation scenarios from Excel mapping with reference table support."""
     scenarios = []
     
     for index, row in df.iterrows():
         try:
-            # Extract mapping information
+            # Extract mapping information - now supporting reference tables
             source_table = row.get('Source_Table', '')
             target_table = row.get('Target_Table', '')
             source_join_key = row.get('Source_Join_Key', '')
@@ -681,17 +705,35 @@ def generate_scenarios_from_excel(df, project_id, dataset_id):
             derivation_logic = row.get('Derivation_Logic', '')
             scenario_name = row.get('Scenario_Name', f'Transformation_{index+1}')
             
+            # NEW: Enhanced reference table support
+            reference_table = row.get('Reference_Table', '')  # Optional reference/lookup table
+            reference_join_key = row.get('Reference_Join_Key', '')  # Key to join with reference
+            reference_lookup_column = row.get('Reference_Lookup_Column', '')  # Column to lookup in reference
+            reference_return_column = row.get('Reference_Return_Column', '')  # Column to return from reference
+            business_conditions = row.get('Business_Conditions', '')  # IF-THEN-ELSE conditions
+            hardcoded_values = row.get('Hardcoded_Values', '')  # Static values for conditions
+            
             # Skip rows with missing essential data
-            if not all([source_table, target_table, source_join_key, target_join_key, target_column, derivation_logic]):
+            if not all([source_table, target_column, derivation_logic]):
                 continue
             
-            # Create transformation validation SQL with composite key support
+            
+            # Create transformation validation SQL with enhanced reference table support
             try:
-                # First try the enhanced composite key SQL
-                sql_query = create_enhanced_transformation_sql(
-                    source_table, target_table, source_join_key, target_join_key, target_column, 
-                    derivation_logic, project_id, dataset_id
-                )
+                # NEW: Check if this scenario uses reference tables
+                if reference_table and reference_join_key:
+                    sql_query = create_reference_table_validation_sql(
+                        source_table, target_table, source_join_key, target_join_key, target_column,
+                        derivation_logic, reference_table, reference_join_key, 
+                        reference_lookup_column, reference_return_column, business_conditions,
+                        hardcoded_values, project_id, dataset_id
+                    )
+                else:
+                    # Use existing enhanced composite key SQL for standard scenarios
+                    sql_query = create_enhanced_transformation_sql(
+                        source_table, target_table, source_join_key, target_join_key, target_column, 
+                        derivation_logic, project_id, dataset_id
+                    )
                 
                 # Fallback to original SQL if enhanced version fails
                 if "Error:" in sql_query:
@@ -708,14 +750,22 @@ def generate_scenarios_from_excel(df, project_id, dataset_id):
             
             scenarios.append({
                 'name': scenario_name,
-                'description': f"Validate {target_column} transformation from {source_table} to {target_table}",
+                'description': f"Validate {target_column} transformation from {source_table}" + 
+                             (f" using reference table {reference_table}" if reference_table else f" to {target_table}"),
                 'query': sql_query,
                 'source_table': source_table,
                 'target_table': target_table,
                 'target_column': target_column,
                 'derivation_logic': derivation_logic,
                 'source_join_key': source_join_key,
-                'target_join_key': target_join_key
+                'target_join_key': target_join_key,
+                # NEW: Reference table metadata
+                'reference_table': reference_table,
+                'reference_join_key': reference_join_key,
+                'reference_lookup_column': reference_lookup_column,
+                'reference_return_column': reference_return_column,
+                'business_conditions': business_conditions,
+                'hardcoded_values': hardcoded_values
             })
             
         except Exception as e:
@@ -1103,6 +1153,508 @@ WHERE total_rows > 0
 """
     
     return sql.strip()
+
+def create_reference_table_validation_sql(source_table, target_table, source_join_key, target_join_key, 
+                                        target_column, derivation_logic, reference_table, reference_join_key,
+                                        reference_lookup_column, reference_return_column, business_conditions,
+                                        hardcoded_values, project_id, dataset_id):
+    """Create SQL for validation scenarios involving reference tables and complex business logic.
+    
+    This function supports:
+    1. VLOOKUP-style operations using reference tables
+    2. IF-THEN-ELSE business conditions with hardcoded values
+    3. Multi-table joins with conditional logic
+    4. Complex derivation rules combining lookups and calculations
+    """
+    
+    source_ref = f"`{project_id}.{dataset_id}.{source_table}`"
+    reference_ref = f"`{project_id}.{dataset_id}.{reference_table}`" if reference_table else None
+    
+    # Parse keys for composite key support
+    source_keys = parse_join_keys(source_join_key) if source_join_key else []
+    reference_keys = parse_join_keys(reference_join_key) if reference_join_key else []
+    
+    # Create key descriptions for SQL comments
+    source_key_desc = f"Source Keys: {', '.join(source_keys)}" if source_keys else "No source join"
+    ref_key_desc = f"Reference Keys: {', '.join(reference_keys)}" if reference_keys else "No reference join"
+    
+    try:
+        # Parse business conditions and hardcoded values
+        conditions_map = parse_business_conditions(business_conditions) if business_conditions else {}
+        hardcoded_map = parse_hardcoded_values(hardcoded_values) if hardcoded_values else {}
+        
+        # Determine the type of validation scenario
+        if "VLOOKUP" in derivation_logic.upper() or (reference_table and reference_lookup_column):
+            # VLOOKUP-style scenario with reference table
+            sql = create_vlookup_validation_sql(
+                source_ref, reference_ref, source_keys, reference_keys,
+                reference_lookup_column, reference_return_column, target_column,
+                conditions_map, hardcoded_map, derivation_logic
+            )
+            
+        elif "IF(" in derivation_logic.upper() and (hardcoded_values or business_conditions):
+            # IF-THEN-ELSE scenario with hardcoded values
+            sql = create_conditional_validation_sql(
+                source_ref, reference_ref, source_keys, reference_keys,
+                target_column, derivation_logic, conditions_map, hardcoded_map
+            )
+            
+        elif reference_table and "JOIN" in derivation_logic.upper():
+            # Multi-table join scenario
+            sql = create_multitable_join_validation_sql(
+                source_ref, reference_ref, source_keys, reference_keys,
+                target_column, derivation_logic, conditions_map
+            )
+            
+        else:
+            # Enhanced derivation with reference data
+            sql = create_enhanced_derivation_sql(
+                source_ref, reference_ref, source_keys, reference_keys,
+                target_column, derivation_logic, conditions_map, hardcoded_map
+            )
+        
+        # Add comprehensive SQL comments
+        sql_with_comments = f"""
+-- Enhanced Reference Table Validation: {target_column}
+-- Source Table: {source_table}
+-- Target Table: {target_table or 'N/A'}
+-- Reference Table: {reference_table or 'N/A'}
+-- {source_key_desc}
+-- {ref_key_desc}
+-- Derivation Logic: {derivation_logic}
+-- Business Conditions: {business_conditions or 'N/A'}
+-- Hardcoded Values: {hardcoded_values or 'N/A'}
+
+{sql}
+"""
+        
+        return sql_with_comments.strip()
+        
+    except Exception as e:
+        # Return error SQL with details for debugging
+        return f"""
+-- Error in Reference Table Validation
+-- Source: {source_table}, Reference: {reference_table}
+-- Error: {str(e)}
+-- Derivation Logic: {derivation_logic}
+
+SELECT 
+    'ERROR' as validation_status,
+    0 as row_count,
+    0.0 as percentage,
+    'Failed to parse reference table validation: {str(e)}' as details
+"""
+
+def parse_business_conditions(conditions_str):
+    """Parse business conditions string into structured conditions.
+    
+    Examples:
+    - "balance > 50000 THEN 'Premium'; balance > 10000 THEN 'Standard'; ELSE 'Basic'"
+    - "account_type = 'SAVINGS' THEN rate_lookup; account_type = 'CHECKING' THEN 0.01"
+    """
+    conditions = {}
+    if not conditions_str:
+        return conditions
+    
+    try:
+        # Split by semicolon to get individual conditions
+        condition_parts = conditions_str.split(';')
+        
+        for i, part in enumerate(condition_parts):
+            part = part.strip()
+            if 'THEN' in part.upper():
+                if_part, then_part = part.upper().split('THEN', 1)
+                conditions[f'condition_{i+1}'] = {
+                    'if_clause': if_part.strip(),
+                    'then_clause': then_part.strip()
+                }
+            elif 'ELSE' in part.upper():
+                conditions['else_clause'] = part.upper().replace('ELSE', '').strip()
+    
+    except Exception as e:
+        # Return empty conditions if parsing fails
+        pass
+    
+    return conditions
+
+def parse_hardcoded_values(hardcoded_str):
+    """Parse hardcoded values string into key-value pairs.
+    
+    Examples:
+    - "Premium=0.05,Standard=0.03,Basic=0.01"
+    - "HIGH_RISK='Manual Review',LOW_RISK='Auto Approve'"
+    """
+    hardcoded = {}
+    if not hardcoded_str:
+        return hardcoded
+    
+    try:
+        # Split by comma to get key-value pairs
+        pairs = hardcoded_str.split(',')
+        
+        for pair in pairs:
+            if '=' in pair:
+                key, value = pair.split('=', 1)
+                hardcoded[key.strip()] = value.strip().strip('"').strip("'")
+    
+    except Exception as e:
+        # Return empty hardcoded values if parsing fails
+        pass
+    
+    return hardcoded
+
+def create_vlookup_validation_sql(source_ref, reference_ref, source_keys, reference_keys,
+                                lookup_column, return_column, target_column, conditions_map, hardcoded_map, derivation_logic):
+    """Create SQL for VLOOKUP-style validation with reference tables."""
+    
+    # Check if this is a range-based lookup (CASE WHEN in derivation logic)
+    is_range_lookup = 'CASE WHEN' in derivation_logic.upper() if derivation_logic else False
+    
+    # Create join conditions
+    if is_range_lookup and conditions_map:
+        # For range-based lookups, use CASE WHEN to categorize and then join
+        categorization_logic = []
+        for condition_key, condition_data in conditions_map.items():
+            if condition_key != 'else_clause':
+                if_clause = condition_data['if_clause'].replace('SOURCE.', 's.').replace('REF.', 'r.')
+                then_clause = condition_data['then_clause'].replace("'", "").replace('"', '')
+                categorization_logic.append(f"WHEN {if_clause} THEN '{then_clause}'")
+        
+        if 'else_clause' in conditions_map:
+            else_clause = conditions_map['else_clause'].replace("'", "").replace('"', '')
+            categorization_logic.append(f"ELSE '{else_clause}'")
+        
+        balance_category = f"""
+CASE 
+    {chr(10).join(categorization_logic)}
+END"""
+        
+        join_clause = f"({balance_category}) = r.{reference_keys[0] if reference_keys else lookup_column}"
+        
+    elif source_keys and reference_keys and len(source_keys) == len(reference_keys):
+        join_conditions = []
+        for src_key, ref_key in zip(source_keys, reference_keys):
+            # Add type casting if needed
+            join_conditions.append(f"CAST(s.{src_key} AS STRING) = CAST(r.{ref_key} AS STRING)")
+        join_clause = " AND ".join(join_conditions)
+    elif reference_keys and ',' in reference_keys[0]:
+        # Handle comma-separated multi-key joins
+        ref_keys_list = [key.strip() for key in reference_keys[0].split(',')]
+        if source_keys and ',' in source_keys[0]:
+            src_keys_list = [key.strip() for key in source_keys[0].split(',')]
+        else:
+            # Try to map common keys
+            src_keys_list = ref_keys_list  # Assume same column names
+        
+        join_conditions = []
+        for src_key, ref_key in zip(src_keys_list, ref_keys_list):
+            join_conditions.append(f"CAST(s.{src_key} AS STRING) = CAST(r.{ref_key} AS STRING)")
+        join_clause = " AND ".join(join_conditions)
+    else:
+        # Fallback to available keys or default assumptions
+        src_key = source_keys[0] if source_keys else lookup_column or 'customer_id'
+        ref_key = reference_keys[0] if reference_keys else lookup_column or 'customer_id'
+        join_clause = f"CAST(s.{src_key} AS STRING) = CAST(r.{ref_key} AS STRING)"
+    
+    # Build the VLOOKUP logic
+    if return_column:
+        lookup_logic = f"r.{return_column}"
+    elif lookup_column:
+        lookup_logic = f"r.{lookup_column}"
+    else:
+        lookup_logic = "r.*"
+    
+    # Add conditional logic if specified
+    if conditions_map:
+        case_statements = []
+        for condition_key, condition_data in conditions_map.items():
+            if condition_key != 'else_clause':
+                if_clause = condition_data['if_clause'].replace('SOURCE.', 's.').replace('REF.', 'r.')
+                then_clause = condition_data['then_clause']
+                
+                # Check if then_clause references hardcoded values
+                if then_clause.upper() in [k.upper() for k in hardcoded_map.keys()]:
+                    then_value = next(v for k, v in hardcoded_map.items() if k.upper() == then_clause.upper())
+                    case_statements.append(f"WHEN {if_clause} THEN '{then_value}'")
+                else:
+                    case_statements.append(f"WHEN {if_clause} THEN {then_clause}")
+        
+        if 'else_clause' in conditions_map:
+            else_clause = conditions_map['else_clause']
+            if else_clause.upper() in [k.upper() for k in hardcoded_map.keys()]:
+                else_value = next(v for k, v in hardcoded_map.items() if k.upper() == else_clause.upper())
+                case_statements.append(f"ELSE '{else_value}'")
+            else:
+                case_statements.append(f"ELSE {else_clause}")
+        
+        if case_statements:
+            lookup_logic = f"""
+CASE 
+    {chr(10).join(case_statements)}
+END"""
+    
+    sql = f"""
+WITH source_with_lookup AS (
+    SELECT 
+        s.*,
+        {lookup_logic} as calculated_{target_column},
+        CASE 
+            WHEN r.{return_column or lookup_column or reference_keys[0] if reference_keys else 'id'} IS NOT NULL THEN 'FOUND'
+            ELSE 'NOT_FOUND'
+        END as lookup_status
+    FROM {source_ref} s
+    LEFT JOIN {reference_ref} r ON {join_clause}
+),
+validation_summary AS (
+    SELECT 
+        COUNT(*) as total_rows,
+        COUNT(CASE WHEN lookup_status = 'FOUND' THEN 1 END) as successful_lookups,
+        COUNT(CASE WHEN lookup_status = 'NOT_FOUND' THEN 1 END) as failed_lookups,
+        COUNT(CASE WHEN calculated_{target_column} IS NOT NULL THEN 1 END) as non_null_results
+    FROM source_with_lookup
+)
+SELECT 
+    'PASS' as validation_status,
+    total_rows as row_count,
+    ROUND(successful_lookups * 100.0 / NULLIF(total_rows, 0), 2) as percentage,
+    CONCAT('VLOOKUP validation completed: ', CAST(successful_lookups AS STRING), ' successful lookups out of ', CAST(total_rows AS STRING), ' records') as details
+FROM validation_summary
+WHERE total_rows > 0
+
+UNION ALL
+
+SELECT 
+    'INFO' as validation_status,
+    failed_lookups as row_count,
+    ROUND(failed_lookups * 100.0 / NULLIF(total_rows, 0), 2) as percentage,
+    CONCAT('Reference lookup failures: ', CAST(failed_lookups AS STRING), ' records could not be matched in reference table') as details
+FROM validation_summary
+WHERE total_rows > 0 AND failed_lookups > 0
+"""
+    
+    return sql
+
+def create_conditional_validation_sql(source_ref, reference_ref, source_keys, reference_keys,
+                                    target_column, derivation_logic, conditions_map, hardcoded_map):
+    """Create SQL for IF-THEN-ELSE conditional validation with hardcoded values."""
+    
+    # Build complex CASE statement from conditions
+    case_statements = []
+    
+    # Parse derivation_logic for IF conditions if conditions_map is empty
+    if not conditions_map and "IF(" in derivation_logic.upper():
+        # Simple parsing for basic IF statements
+        logic_upper = derivation_logic.upper()
+        if "IF(" in logic_upper and "THEN" in logic_upper:
+            # Extract basic IF-THEN-ELSE pattern
+            import re
+            if_match = re.search(r'IF\s*\((.*?)\)\s*THEN\s*(.*?)(?:\s*ELSE\s*(.*?))?$', derivation_logic, re.IGNORECASE)
+            if if_match:
+                condition = if_match.group(1).strip()
+                then_value = if_match.group(2).strip().strip('"').strip("'")
+                else_value = if_match.group(3).strip().strip('"').strip("'") if if_match.group(3) else 'NULL'
+                
+                case_statements.append(f"WHEN {condition} THEN '{then_value}'")
+                if else_value != 'NULL':
+                    case_statements.append(f"ELSE '{else_value}'")
+    else:
+        # Use parsed conditions_map
+        for condition_key, condition_data in conditions_map.items():
+            if condition_key != 'else_clause':
+                if_clause = condition_data['if_clause'].replace('SOURCE.', 's.')
+                then_clause = condition_data['then_clause']
+                
+                # Replace with hardcoded values if available
+                if then_clause.upper() in [k.upper() for k in hardcoded_map.keys()]:
+                    then_value = next(v for k, v in hardcoded_map.items() if k.upper() == then_clause.upper())
+                    case_statements.append(f"WHEN {if_clause} THEN '{then_value}'")
+                else:
+                    case_statements.append(f"WHEN {if_clause} THEN {then_clause}")
+        
+        if 'else_clause' in conditions_map:
+            else_clause = conditions_map['else_clause']
+            if else_clause.upper() in [k.upper() for k in hardcoded_map.keys()]:
+                else_value = next(v for k, v in hardcoded_map.items() if k.upper() == else_clause.upper())
+                case_statements.append(f"ELSE '{else_value}'")
+            else:
+                case_statements.append(f"ELSE {else_clause}")
+    
+    conditional_logic = f"""
+CASE 
+    {chr(10).join(case_statements)}
+END""" if case_statements else "'DEFAULT_VALUE'"
+    
+    # Include reference table if specified
+    if reference_ref and reference_keys and source_keys:
+        join_conditions = []
+        for src_key, ref_key in zip(source_keys, reference_keys):
+            join_conditions.append(f"s.{src_key} = r.{ref_key}")
+        join_clause = " AND ".join(join_conditions) if join_conditions else f"s.customer_id = r.customer_id"
+        
+        sql = f"""
+WITH conditional_logic AS (
+    SELECT 
+        s.*,
+        {conditional_logic} as calculated_{target_column}
+    FROM {source_ref} s
+    LEFT JOIN {reference_ref} r ON {join_clause}
+),
+validation_summary AS (
+    SELECT 
+        COUNT(*) as total_rows,
+        COUNT(calculated_{target_column}) as successful_conditions,
+        COUNT(CASE WHEN calculated_{target_column} IS NOT NULL THEN 1 END) as non_null_results
+    FROM conditional_logic
+)
+SELECT 
+    'PASS' as validation_status,
+    total_rows as row_count,
+    ROUND(100.0, 2) as percentage,
+    CONCAT('Conditional validation completed: ', CAST(total_rows AS STRING), ' records processed with business rules') as details
+FROM validation_summary
+WHERE total_rows > 0
+
+UNION ALL
+
+SELECT 
+    'INFO' as validation_status,
+    successful_conditions as row_count,
+    ROUND(successful_conditions * 100.0 / NULLIF(total_rows, 0), 2) as percentage,
+    CONCAT('Successful conditions: ', CAST(successful_conditions AS STRING), ' records matched business conditions') as details
+FROM validation_summary
+WHERE total_rows > 0
+"""
+    else:
+        # Single table conditional logic
+        sql = f"""
+WITH conditional_logic AS (
+    SELECT 
+        s.*,
+        {conditional_logic} as calculated_{target_column}
+    FROM {source_ref} s
+),
+validation_summary AS (
+    SELECT 
+        COUNT(*) as total_rows,
+        COUNT(calculated_{target_column}) as successful_conditions,
+        COUNT(CASE WHEN calculated_{target_column} IS NOT NULL THEN 1 END) as non_null_results
+    FROM conditional_logic
+)
+SELECT 
+    'PASS' as validation_status,
+    total_rows as row_count,
+    ROUND(100.0, 2) as percentage,
+    CONCAT('Conditional validation completed: ', CAST(total_rows AS STRING), ' records processed') as details
+FROM validation_summary
+WHERE total_rows > 0
+"""
+    
+    return sql
+
+def create_multitable_join_validation_sql(source_ref, reference_ref, source_keys, reference_keys,
+                                        target_column, derivation_logic, conditions_map):
+    """Create SQL for multi-table join scenarios."""
+    
+    # Create join conditions
+    if source_keys and reference_keys and len(source_keys) == len(reference_keys):
+        join_conditions = []
+        for src_key, ref_key in zip(source_keys, reference_keys):
+            join_conditions.append(f"s.{src_key} = r.{ref_key}")
+        join_clause = " AND ".join(join_conditions)
+    else:
+        join_clause = f"s.{source_keys[0] if source_keys else 'customer_id'} = r.{reference_keys[0] if reference_keys else 'customer_id'}"
+    
+    # Parse derivation logic for multi-table operations
+    safe_derivation = derivation_logic.replace('SOURCE.', 's.').replace('REFERENCE.', 'r.').replace('REF.', 'r.')
+    
+    sql = f"""
+WITH multitable_join AS (
+    SELECT 
+        s.*,
+        r.*,
+        {safe_derivation} as calculated_{target_column}
+    FROM {source_ref} s
+    INNER JOIN {reference_ref} r ON {join_clause}
+),
+validation_summary AS (
+    SELECT 
+        COUNT(*) as total_rows,
+        COUNT(calculated_{target_column}) as successful_joins,
+        COUNT(CASE WHEN calculated_{target_column} IS NOT NULL THEN 1 END) as non_null_results
+    FROM multitable_join
+)
+SELECT 
+    'PASS' as validation_status,
+    total_rows as row_count,
+    ROUND(100.0, 2) as percentage,
+    CONCAT('Multi-table join validation completed: ', CAST(total_rows AS STRING), ' records processed') as details
+FROM validation_summary
+WHERE total_rows > 0
+"""
+    
+    return sql
+
+def create_enhanced_derivation_sql(source_ref, reference_ref, source_keys, reference_keys,
+                                 target_column, derivation_logic, conditions_map, hardcoded_map):
+    """Create SQL for enhanced derivation scenarios combining multiple features."""
+    
+    # Default to single table if no reference specified
+    if not reference_ref:
+        safe_derivation = convert_business_logic_to_safe_sql(derivation_logic, source_ref.split('.')[-1].strip('`'), 
+                                                           source_ref.split('.')[0].strip('`'), 
+                                                           source_ref.split('.')[1])
+        
+        sql = f"""
+WITH enhanced_derivation AS (
+    SELECT 
+        s.*,
+        {safe_derivation} as calculated_{target_column}
+    FROM {source_ref} s
+),
+validation_summary AS (
+    SELECT 
+        COUNT(*) as total_rows,
+        COUNT(calculated_{target_column}) as successful_derivations
+    FROM enhanced_derivation
+)
+SELECT 
+    'PASS' as validation_status,
+    total_rows as row_count,
+    ROUND(100.0, 2) as percentage,
+    CONCAT('Enhanced derivation completed: ', CAST(total_rows AS STRING), ' records processed') as details
+FROM validation_summary
+WHERE total_rows > 0
+"""
+    else:
+        # Multi-table enhanced derivation
+        join_clause = f"s.{source_keys[0] if source_keys else 'customer_id'} = r.{reference_keys[0] if reference_keys else 'customer_id'}"
+        safe_derivation = derivation_logic.replace('SOURCE.', 's.').replace('REFERENCE.', 'r.')
+        
+        sql = f"""
+WITH enhanced_derivation AS (
+    SELECT 
+        s.*,
+        r.*,
+        {safe_derivation} as calculated_{target_column}
+    FROM {source_ref} s
+    LEFT JOIN {reference_ref} r ON {join_clause}
+),
+validation_summary AS (
+    SELECT 
+        COUNT(*) as total_rows,
+        COUNT(calculated_{target_column}) as successful_derivations
+    FROM enhanced_derivation
+)
+SELECT 
+    'PASS' as validation_status,
+    total_rows as row_count,
+    ROUND(100.0, 2) as percentage,
+    CONCAT('Enhanced multi-table derivation completed: ', CAST(total_rows AS STRING), ' records processed') as details
+FROM validation_summary
+WHERE total_rows > 0
+"""
+    
+    return sql
 
 def convert_business_logic_to_sql(derivation_logic, source_table, target_table, join_key, target_column, validation_type, project_id, dataset_id):
     """Convert high-level business logic to actual BigQuery SQL."""
