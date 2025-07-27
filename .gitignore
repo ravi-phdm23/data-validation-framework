@@ -148,6 +148,9 @@ bigquery_scenarios_*.log
 sample_*.csv
 test_output_*.csv
 
+# Allow essential sample files for deployment
+!BigQuery_Test_Scenarios_Sample.xlsx
+
 # Duplicate/versioned files
 *_20*.xlsx
 *_duplicate.py
