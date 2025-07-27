@@ -1,0 +1,9 @@
+Scenario,Status,Rows,Details
+Customer_Balance_Aggregation,PASS,1000,Test successful: 1000 rows processed
+Transaction_Count_By_Customer,PASS,5000,Test successful: 5000 rows processed
+Average_Transaction_Amount,PASS,5000,Test successful: 5000 rows processed
+High_Value_Transaction_Check,PASS,5000,Test successful: 5000 rows processed
+Customer_Data_Completeness,PASS,1000,Test successful: 1000 rows processed
+Address_Format_Validation,PASS,1000,Test successful: 1000 rows processed
+Balance_Range_Validation,PASS,1000,Test successful: 1000 rows processed
+Monthly_Transaction_Trends,PASS,5000,Test successful: 5000 rows processed
