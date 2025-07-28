@@ -14,12 +14,15 @@ def convert_business_logic_to_safe_sql(derivation_logic, source_table, project_i
     # Known column mappings for our banking tables (based on actual schema)
     customers_columns = ['customer_id', 'first_name', 'last_name', 'full_name', 'account_number', 'account_type', 'balance', 'account_open_date', 'address', 'city', 'state', 'zip_code', 'risk_score', 'account_status', 'monthly_income']
     transactions_columns = ['transaction_id', 'account_number', 'transaction_type', 'amount', 'transaction_date', 'channel', 'merchant', 'transaction_city', 'transaction_state', 'status', 'is_fraudulent', 'processing_fee']
+    account_profiles_columns = ['customer_reference', 'account_id', 'current_balance', 'account_status', 'account_type', 'last_transaction_date', 'credit_limit']
     
     # Determine available columns based on source table
     if source_table.lower() == 'customers':
         available_columns = customers_columns
     elif source_table.lower() == 'transactions':
         available_columns = transactions_columns
+    elif source_table.lower() == 'account_profiles':
+        available_columns = account_profiles_columns
     else:
         # Default fallback - use generic approach
         available_columns = ['*']

@@ -30,20 +30,20 @@ def create_multi_scenario_excel():
         },
         {
             'Scenario_Name': 'S002_Account_Balance_Validation',
-            'Source_Table': 'accounts',
-            'Target_Table': 'account_summary',
-            'Source_Join_Key': 'account_id',
-            'Target_Join_Key': 'acc_id',
-            'Target_Column': 'total_balance',
-            'Derivation_Logic': 'current_balance + pending_balance',
+            'Source_Table': 'account_profiles',
+            'Target_Table': 'account_summary_target',
+            'Source_Join_Key': 'customer_reference',
+            'Target_Join_Key': 'cust_id',
+            'Target_Column': 'balance_total',
+            'Derivation_Logic': 'current_balance',
             'Reference_Table': '',
             'Reference_Join_Key': '',
             'Reference_Lookup_Column': '',
             'Reference_Return_Column': '',
             'Business_Conditions': '',
             'Hardcoded_Values': '',
-            'Description': 'Validate total balance calculation from current and pending balances',
-            'Expected_Result': 'Should PASS if total balance equals current + pending'
+            'Description': 'Validate balance total matches current balance from account profiles',
+            'Expected_Result': 'Should PASS if balance_total equals current_balance'
         },
         {
             'Scenario_Name': 'S003_Transaction_Status_Validation',
